@@ -12,7 +12,7 @@ flags.DEFINE_integer('train_size', 0.8, 'training data percentage')
 flags.DEFINE_integer('test_size', 0.1, 'testing data percentage')
 flags.DEFINE_integer('val_size', 0.1, 'validation data percentage')
 flags.DEFINE_string('mode', 'prose', 'do the generation for prose or poetry')
-flags.DEFINE_integer('no_perm', 1000, 'no of permuations per data point')
+flags.DEFINE_integer('no_perm', 100, 'no of permuations per data point')
 FLAGS = flags.FLAGS
 
 np.random.seed(100)
