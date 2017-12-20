@@ -51,6 +51,14 @@ def load_train_data():
     print(np.array(X).shape)
     return X, Y
 
+def load_val_data():
+    de_sents = [regex.sub("[^\s\p{Latin}']", "", line) for line in codecs.open(hp.source_val, 'r', 'utf-8').read().split("\n") if line and line[0] != "<"]
+    en_sents = [regex.sub("[^\s\p{Latin}']", "", line) for line in codecs.open(hp.target_val, 'r', 'utf-8').read().split("\n") if line and line[0] != "<"]
+
+    X, Y, Sources, Targets = create_data(de_sents, en_sents)
+    print(np.array(X).shape)
+    return X, Y
+
 def load_test_data():
     de_sents = [regex.sub("[^\s\p{Latin}']", "", line) for line in codecs.open(hp.source_test, 'r', 'utf-8').read().split("\n") if line and line[0] != "<"]
     en_sents = [regex.sub("[^\s\p{Latin}']", "", line) for line in codecs.open(hp.target_test, 'r', 'utf-8').read().split("\n") if line and line[0] != "<"]

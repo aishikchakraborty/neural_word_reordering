@@ -4,28 +4,32 @@ from __future__ import print_function
 import tensorflow as tf
 
 from hyperparams import Hyperparams as hp
-from data_load import get_batch_data, load_de_vocab, load_en_vocab
+from data_load import get_batch_data, load_de_vocab, load_en_vocab, load_train_data
 from modules import *
 import os, codecs
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+import numpy as np
 
 class Graph():
     def __init__(self, is_training=True):
+        # Load vocabulary
+
         self.graph = tf.Graph()
+
         with self.graph.as_default():
-            if is_training:
-                self.x, self.y, self.num_batch = get_batch_data() # (N, T)
-            else: # inference
-                self.x = tf.placeholder(tf.int32, shape=(None, hp.maxlen))
-                self.y = tf.placeholder(tf.int32, shape=(None, hp.maxlen))
+            # if is_training:
+            #     self.x, self.y, self.num_batch = get_batch_data() # (N, T)
+            # else: # inference
+            self.x = tf.placeholder(tf.int32, shape=(None, hp.maxlen))
+            self.y = tf.placeholder(tf.int32, shape=(None, hp.maxlen))
 
             # define decoder inputs
             self.decoder_inputs = tf.concat((tf.ones_like(self.y[:, :1])*2, self.y[:, :-1]), -1) # 2:<S>
 
-            # Load vocabulary
             de2idx, idx2de = load_de_vocab()
             en2idx, idx2en = load_en_vocab()
+            print('Vocab loaded')
 
             # Encoder
             with tf.variable_scope("encoder"):
@@ -169,25 +173,41 @@ if __name__ == '__main__':
     en2idx, idx2en = load_en_vocab()
 
     # Construct graph
-    g = Graph("train"); print("Graph loaded")
+    g = Graph("train")
+    print("Graph loaded")
 
+    X, Y = load_train_data()
+
+    # calc total batch count
+    num_batch = len(X) // hp.batch_size
+    print(X.shape)
+    g.num_batch = num_batch
     # Start session
     sv = tf.train.Supervisor(graph=g.graph,
                              logdir=hp.logdir,
+                             summary_op=None,
                              save_model_secs=0)
     with sv.managed_session() as sess:
+        i = 0
         for epoch in range(1, hp.num_epochs+1):
             if sv.should_stop(): break
             for step in tqdm(range(g.num_batch), total=g.num_batch, ncols=70, leave=False, unit='b'):
-                sess.run(g.train_op)
+                x = X[step*hp.batch_size:(step+1)*hp.batch_size]
+                y = Y[step*hp.batch_size:(step+1)*hp.batch_size]
+                x = np.array(x, dtype=np.int32)
+                y = np.array(y, dtype=np.int32)
+                sess.run([g.train_op, g.merged], {g.x:x, g.y:y})
+                i += 1
                 if step % 100 == 0:
-                    _x, _y, _preds, _alignments, _gs = sess.run([g.x, g.y, g.preds, g.alignments, g.global_step])
-                    print("\ninput=", " ".join(idx2de[idx] for idx in _x[0]))
-                    print("expected=", " ".join(idx2en[idx] for idx in _y[0]))
+                    sv.summary_computed(sess, sess.run(g.merged, {g.x:x, g.y:y}))
+                    _preds, _alignments, _gs = sess.run([g.preds, g.alignments, g.global_step], {g.x:x, g.y:y})
+                    print("\ninput=", " ".join(idx2de[idx] for idx in x[0]))
+                    print("expected=", " ".join(idx2en[idx] for idx in y[0]))
                     print("got=", " ".join(idx2en[idx] for idx in _preds[0]))
-                    plot_alignment(_alignments[0], _gs)
-
-            gs = sess.run(g.global_step)
-            sv.saver.save(sess, hp.logdir + '/model_epoch_%02d_gs_%d' % (epoch, gs))
+                    # gs = _gs
+                    # plot_alignment(_alignments[0], _gs)
+                    
+            # gs, _ = sess.run([g.global_step, g.merged], {g.x: x, g.y:y})
+            sv.saver.save(sess, hp.logdir + '/model_epoch_%02d_gs_%d' % (epoch, i))
 
     print("Done")
